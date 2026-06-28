@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Social Media Monitoring Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  /* ── RESET & BASE ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0f1117;
+    --surface:   #1a1d27;
+    --surface2:  #222638;
+    --border:    #2e3250;
+    --gold:      #f5c518;
+    --gold-dim:  #b8931a;
+    --accent:    #4f8ef7;
+    --accent2:   #a78bfa;
+    --positive:  #22c55e;
+    --negative:  #ef4444;
+    --neutral:   #38bdf8;
+    --text:      #e8eaf0;
+    --muted:     #8b90a7;
+    --radius:    12px;
+    --shadow:    0 4px 24px rgba(0,0,0,0.4);
+  }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 1.1rem;
+    letter-spacing: .5px;
+  }
+  .topbar-logo span.dot {
+    width: 10px; height: 10px;
+    background: var(--gold);
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .refresh-badge {
+    font-size: .75rem;
+    color: var(--muted);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .pulse {
+    width: 7px; height: 7px;
+    background: var(--positive);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: .4; transform: scale(1.4); }
+  }
+  .btn-icon {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: .82rem;
+    transition: background .2s;
+  }
+  .btn-icon:hover { background: var(--border); }
+
+  /* ── LAYOUT ── */
+  .main { padding: 20px 24px 40px; max-width: 1600px; margin: 0 auto; }
+
+  /* ── FILTERS ── */
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+    align-items: center;
+  }
+  .filter-label { color: var(--muted); font-size: .82rem; }
+  .filter-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 20px;
+    padding: 6px 16px;
+    cursor: pointer;
+    font-size: .82rem;
+    transition: all .2s;
+  }
+  .filter-btn.active, .filter-btn:hover {
+    background: var(--gold);
+    color: #111;
+    border-color: var(--gold);
+    font-weight: 600;
+  }
+  .date-inputs {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .date-inputs input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-size: .82rem;
+    outline: none;
+  }
+  .date-inputs input:focus { border-color: var(--gold); }
+  .date-inputs label { font-size: .78rem; color: var(--muted); }
+
+  #status-bar {
+    font-size: .78rem;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  /* ── KPI CARDS ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    position: relative;
+    overflow: hidden;
+    transition: transform .2s, box-shadow .2s;
+    cursor: default;
+  }
+  .kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--accent-color, var(--gold));
+  }
+  .kpi-label { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 8px; }
+  .kpi-value { font-size: 1.65rem; font-weight: 700; line-height: 1; }
+  .kpi-sub   { font-size: .75rem; color: var(--muted); margin-top: 6px; }
+  .kpi-icon  { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 1.6rem; opacity: .15; }
+
+  /* ── SECTION TITLE ── */
+  .section-title {
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--muted);
+    margin-bottom: 12px;
+    margin-top: 24px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+
+  /* ── SHIFT CARDS ── */
+  .shifts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .shift-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    position: relative;
+  }
+  .shift-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .shift-name {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--gold);
+  }
+  .shift-time {
+    font-size: .75rem;
+    color: var(--muted);
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 3px 10px;
+  }
+  .shift-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: .82rem;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .shift-row:last-child { border-bottom: none; }
+  .shift-row .key { color: var(--muted); }
+  .shift-row .val { font-weight: 600; }
+  .sentiment-mini {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .sent-chip {
+    flex: 1;
+    text-align: center;
+    padding: 5px 4px;
+    border-radius: 8px;
+    font-size: .72rem;
+    font-weight: 700;
+  }
+  .sent-chip.pos { background: rgba(34,197,94,.15); color: var(--positive); }
+  .sent-chip.neg { background: rgba(239,68,68,.15);  color: var(--negative); }
+  .sent-chip.neu { background: rgba(56,189,248,.15); color: var(--neutral); }
+
+  /* ── CHART GRID ── */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+  .chart-card.wide { grid-column: span 2; }
+  .chart-title {
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .chart-title .subtitle { font-size: .72rem; color: var(--muted); font-weight: 400; }
+  canvas { width: 100% !important; }
+
+  /* ── TABLE ── */
+  .table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 20px;
+    overflow-x: auto;
+  }
+  .table-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .table-toolbar .title { font-size: .88rem; font-weight: 600; }
+  .search-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 5px 12px;
+    font-size: .82rem;
+    outline: none;
+    width: 200px;
+  }
+  .search-input:focus { border-color: var(--gold); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .82rem;
+  }
+  th {
+    text-align: left;
+    padding: 8px 12px;
+    color: var(--muted);
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  th:hover { color: var(--gold); }
+  th.sort-asc::after  { content: ' ↑'; color: var(--gold); }
+  th.sort-desc::after { content: ' ↓'; color: var(--gold); }
+  td {
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(46,50,80,.5);
+    white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  .badge {
+    display: inline-block;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: .72rem;
+    font-weight: 700;
+  }
+  .badge-pos { background: rgba(34,197,94,.15); color: var(--positive); }
+  .badge-neg { background: rgba(239,68,68,.15);  color: var(--negative); }
+  .badge-neu { background: rgba(56,189,248,.15); color: var(--neutral); }
+
+  .progress-bar {
+    background: var(--surface2);
+    border-radius: 4px;
+    height: 6px;
+    width: 80px;
+    overflow: hidden;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .progress-fill { height: 100%; border-radius: 4px; }
+
+  /* ── LOADING / ERROR ── */
+  .loader {
+    text-align: center;
+    padding: 60px;
+    color: var(--muted);
+  }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-box {
+    background: rgba(239,68,68,.1);
+    border: 1px solid rgba(239,68,68,.3);
+    border-radius: var(--radius);
+    padding: 20px;
+    color: var(--negative);
+    text-align: center;
+  }
+
+  /* ── TOOLTIP ── */
+  .tooltip {
+    position: fixed;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: .78rem;
+    color: var(--text);
+    pointer-events: none;
+    z-index: 9999;
+    display: none;
+  }
+
+  /* ── EXPORT BTN ── */
+  .export-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-size: .78rem;
+    transition: background .2s;
+  }
+  .export-btn:hover { background: var(--gold); color: #111; border-color: var(--gold); }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    .main { padding: 12px; }
+    .topbar { padding: 0 12px; }
+    .chart-card.wide { grid-column: span 1; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-logo">
+    <span class="dot"></span>
+    Social Intelligence Hub
+  </div>
+  <div class="topbar-right">
+    <div class="refresh-badge">
+      <span class="pulse"></span>
+      <span id="last-updated">Loading…</span>
+    </div>
+    <button class="btn-icon" onclick="exportCSV()">⬇ Export</button>
+    <button class="btn-icon" onclick="loadData()">↻ Refresh</button>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- FILTERS -->
+  <div class="filters">
+    <span class="filter-label">Filter:</span>
+    <button class="filter-btn active" onclick="setFilter('today',this)">Today</button>
+    <button class="filter-btn" onclick="setFilter('yesterday',this)">Yesterday</button>
+    <button class="filter-btn" onclick="setFilter('7d',this)">Last 7 Days</button>
+    <button class="filter-btn" onclick="setFilter('30d',this)">Last 30 Days</button>
+    <button class="filter-btn" onclick="setFilter('all',this)">All Time</button>
+    <div class="date-inputs">
+      <label>From</label>
+      <input type="date" id="date-from" onchange="setFilter('custom',null)"/>
+      <label>To</label>
+      <input type="date" id="date-to" onchange="setFilter('custom',null)"/>
+    </div>
+    <span id="status-bar">—</span>
+  </div>
+
+  <!-- LOADING STATE -->
+  <div id="loader" class="loader">
+    <div class="spinner"></div>
+    Fetching latest data from Google Sheets…
+  </div>
+
+  <!-- DASHBOARD CONTENT -->
+  <div id="dashboard" style="display:none">
+
+    <!-- KPI ROW -->
+    <div class="kpi-grid" id="kpi-grid"></div>
+
+    <!-- SHIFT PERFORMANCE -->
+    <div class="section-title">Shift Performance Breakdown</div>
+    <div class="shifts-grid" id="shifts-grid"></div>
+
+    <!-- CHARTS ROW 1 -->
+    <div class="section-title">Sentiment & Volume Analysis</div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Sentiment Distribution <span class="subtitle">All Comments</span></div>
+        <canvas id="chart-sentiment" height="220"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">FB vs Instagram Comments <span class="subtitle">By Shift</span></div>
+        <canvas id="chart-platform" height="220"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Response Time Comparison <span class="subtitle">FRT / ART by Shift (secs)</span></div>
+        <canvas id="chart-rt" height="220"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Mentions vs Comments <span class="subtitle">By Shift</span></div>
+        <canvas id="chart-mentions" height="220"></canvas>
+      </div>
+    </div>
+
+    <!-- CHARTS ROW 2 -->
+    <div class="section-title">Platform Sentiment Deep-Dive</div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Facebook Sentiment <span class="subtitle">Positive / Negative / Neutral</span></div>
+        <canvas id="chart-fb-sent" height="200"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Instagram Sentiment <span class="subtitle">Positive / Negative / Neutral</span></div>
+        <canvas id="chart-ig-sent" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- DATA TABLE -->
+    <div class="section-title">Detailed Shift Data</div>
+    <div class="table-card">
+      <div class="table-toolbar">
+        <div class="title">Shift-Level Detail</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="search-input" id="table-search" placeholder="🔍 Search…" oninput="filterTable()" />
+          <button class="export-btn" onclick="exportCSV()">⬇ CSV</button>
+        </div>
+      </div>
+      <table id="detail-table">
+        <thead>
+          <tr>
+            <th onclick="sortTable(0)">Shift</th>
+            <th onclick="sortTable(1)">Hours</th>
+            <th onclick="sortTable(2)">Mentions</th>
+            <th onclick="sortTable(3)">FB+IG Comments</th>
+            <th onclick="sortTable(4)">FB Comments</th>
+            <th onclick="sortTable(5)">IG Comments</th>
+            <th onclick="sortTable(6)">Positive</th>
+            <th onclick="sortTable(7)">Negative</th>
+            <th onclick="sortTable(8)">Neutral</th>
+            <th onclick="sortTable(9)">Sentiment Split</th>
+            <th onclick="sortTable(10)">FRT</th>
+            <th onclick="sortTable(11)">ART</th>
+            <th onclick="sortTable(12)">SLA Breach</th>
+            <th onclick="sortTable(13)">Reply Rate</th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+
+  </div><!-- /dashboard -->
+</div><!-- /main -->
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ══════════════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════════════
+const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT0uAtEVEbu9Upc3g1otrC7S8pnzn1eQ-Ns1kA-FxyvDrH2gchzOaKrVu0qTx781t04qcTJFHFdMPUD/pub?output=csv';
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+// Chart.js defaults
+Chart.defaults.color = '#8b90a7';
+Chart.defaults.borderColor = '#2e3250';
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+Chart.defaults.plugins.legend.labels.boxWidth = 12;
+Chart.defaults.plugins.legend.labels.padding = 16;
+Chart.defaults.plugins.tooltip.backgroundColor = '#222638';
+Chart.defaults.plugins.tooltip.borderColor = '#2e3250';
+Chart.defaults.plugins.tooltip.borderWidth = 1;
+Chart.defaults.plugins.tooltip.padding = 10;
+Chart.defaults.plugins.tooltip.titleColor = '#e8eaf0';
+Chart.defaults.plugins.tooltip.bodyColor = '#8b90a7';
+
+// ══════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════
+let rawRows = [];      // all parsed CSV rows
+let filteredRows = [];
+let currentFilter = 'today';
+let charts = {};
+let sortState = { col: -1, dir: 1 };
+
+// ══════════════════════════════════════════════════
+//  CSV PARSING
+// ══════════════════════════════════════════════════
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = parseLine(lines[0]);
+  return lines.slice(1).map(l => {
+    const vals = parseLine(l);
+    const obj = {};
+    headers.forEach((h, i) => obj[h.trim()] = (vals[i] || '').trim());
+    return obj;
+  }).filter(r => Object.values(r).some(v => v));
+}
+
+function parseLine(line) {
+  const result = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQ = !inQ; }
+    else if (ch === ',' && !inQ) { result.push(cur); cur = ''; }
+    else { cur += ch; }
+  }
+  result.push(cur);
+  return result;
+}
+
+// ══════════════════════════════════════════════════
+//  LOAD DATA  –  multi-proxy cascade
+// ══════════════════════════════════════════════════
+
+// List of CORS proxies tried in order
+const PROXIES = [
+  url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://cors-anywhere.herokuapp.com/${url}`,   // may require manual activation
+  url => url,   // direct – works when served from same origin or if sheet allows it
+];
+
+async function tryFetch(url) {
+  for (let i = 0; i < PROXIES.length; i++) {
+    const target = PROXIES[i](url);
+    try {
+      setLoaderMsg(`Trying fetch method ${i + 1} of ${PROXIES.length}…`);
+      const res = await fetch(target, { cache: 'no-store', mode: 'cors' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      // Sanity-check: must look like CSV (has commas, not an error page)
+      if (!text.includes(',') || text.trim().length < 10) throw new Error('bad payload');
+      console.log(`✅ Fetch succeeded via proxy ${i + 1}:`, target.slice(0, 80));
+      return text;
+    } catch (e) {
+      console.warn(`❌ Proxy ${i + 1} failed:`, e.message);
+    }
+  }
+  throw new Error('All proxies failed');
+}
+
+function setLoaderMsg(msg) {
+  const el = document.getElementById('loader');
+  if (el) el.innerHTML = `<div class="spinner"></div>${msg}`;
+}
+
+async function loadData() {
+  document.getElementById('loader').style.display = 'block';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('last-updated').textContent = 'Refreshing…';
+
+  try {
+    const text = await tryFetch(SHEET_URL);
+    rawRows = parseCSV(text);
+    console.log('Rows loaded:', rawRows.length, '| Columns:', Object.keys(rawRows[0] || {}).join(', '));
+
+    if (!rawRows.length) throw new Error('Parsed 0 rows – check sheet is published');
+
+    applyFilter();
+    document.getElementById('last-updated').textContent =
+      '🟢 Live · Updated ' + new Date().toLocaleTimeString();
+
+  } catch (err) {
+    console.warn('⚠️ Falling back to demo data –', err.message);
+    rawRows = buildDemoData();
+    applyFilter();
+    document.getElementById('last-updated').textContent =
+      '🟡 Demo data (sheet unreachable) · ' + new Date().toLocaleTimeString();
+
+    // Show a non-blocking warning banner
+    showFetchWarning(err.message);
+  }
+
+  document.getElementById('loader').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+}
+
+function showFetchWarning(reason) {
+  // Remove old banner if any
+  const old = document.getElementById('fetch-warning');
+  if (old) old.remove();
+
+  const banner = document.createElement('div');
+  banner.id = 'fetch-warning';
+  banner.style.cssText = `
+    background: rgba(245,197,24,.12);
+    border: 1px solid rgba(245,197,24,.35);
+    border-radius: 10px;
+    padding: 12px 18px;
+    margin-bottom: 16px;
+    font-size: .82rem;
+    color: #f5c518;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  `;
+  banner.innerHTML = `
+    <span style="font-size:1.2rem">⚠️</span>
+    <div>
+      <strong>Could not reach your Google Sheet</strong> (${reason}).<br>
+      <span style="color:#8b90a7">
+        Make sure the sheet is published: <em>File → Share → Publish to web → CSV</em>. 
+        Showing demo data in the meantime. 
+        <a href="#" onclick="document.getElementById('fetch-warning').remove();loadData();return false;" 
+           style="color:#f5c518;text-decoration:underline">Retry now</a>
+      </span>
+    </div>
+    <span style="margin-left:auto;cursor:pointer;color:#8b90a7" 
+          onclick="this.parentElement.remove()">✕</span>
+  `;
+  document.querySelector('.main').prepend(banner);
+}
+
+// ══════════════════════════════════════════════════
+//  DEMO DATA (mirrors screenshot structure)
+// ══════════════════════════════════════════════════
+function buildDemoData() {
+  // We'll build rows that represent comments/mentions with date + shift columns
+  // so filters work naturally. Column schema:
+  // Date, Shift, ShiftHours, Mentions, FBComments, IGComments, FBPos, FBNeg, FBNeu, IGPos, IGNeg, IGNeu, FRT_secs, ART_secs, SLABreach, ReplyRate
+  const shifts = [
+    { name:'Shift 1', hours:'9am-5pm', mentions:1416, fbC:109, igC:354, fbP:6, fbNeg:28, fbNeu:75, igP:15, igNeg:97, igNeu:242, frt:122, art:133, sla:0 },
+    { name:'Shift 2', hours:'5pm-1am', mentions:1506, fbC:124, igC:582, fbP:4, fbNeg:25, fbNeu:95, igP:14, igNeg:48, igNeu:520, frt:173, art:170, sla:0 },
+    { name:'Shift 3', hours:'1am-9am', mentions:226,  fbC:33,  igC:67,  fbP:5, fbNeg:3,  fbNeu:25, igP:9,  igNeg:12, igNeu:46,  frt:122, art:115, sla:0 }
+  ];
+
+  const rows = [];
+  const today = new Date();
+  // Spread data over last 30 days with some variance
+  for (let d = 0; d < 30; d++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - d);
+    const ds = date.toISOString().slice(0,10);
+    const factor = 0.7 + Math.random() * 0.6;
+
+    shifts.forEach(s => {
+      rows.push({
+        Date: ds,
+        Shift: s.name,
+        ShiftHours: s.hours,
+        Mentions: Math.round(s.mentions * factor),
+        FBComments: Math.round(s.fbC * factor),
+        IGComments: Math.round(s.igC * factor),
+        FBPositive: Math.round(s.fbP * factor),
+        FBNegative: Math.round(s.fbNeg * factor),
+        FBNeutral:  Math.round(s.fbNeu * factor),
+        IGPositive: Math.round(s.igP * factor),
+        IGNegative: Math.round(s.igNeg * factor),
+        IGNeutral:  Math.round(s.igNeu * factor),
+        FRT_secs:   Math.round(s.frt * (0.8 + Math.random()*.4)),
+        ART_secs:   Math.round(s.art * (0.8 + Math.random()*.4)),
+        SLABreach:  0,
+        ReplyRate:  100
+      });
+    });
+  }
+  return rows;
+}
+
+// ══════════════════════════════════════════════════
+//  FILTER
+// ══════════════════════════════════════════════════
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  applyFilter();
+}
+
+function getDateBounds() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
+  const d7  = new Date(today); d7.setDate(today.getDate()-6);
+  const d30 = new Date(today); d30.setDate(today.getDate()-29);
+
+  switch(currentFilter) {
+    case 'today':     return [today, today];
+    case 'yesterday': return [yesterday, yesterday];
+    case '7d':        return [d7, today];
+    case '30d':       return [d30, today];
+    case 'custom': {
+      const f = document.getElementById('date-from').value;
+      const t = document.getElementById('date-to').value;
+      if (f && t) {
+        return [new Date(f), new Date(t)];
+      }
+      return [null, null];
+    }
+    default: return [null, null]; // all
+  }
+}
+
+function applyFilter() {
+  const [from, to] = getDateBounds();
+
+  // Try to detect date column
+  const dateKey = Object.keys(rawRows[0] || {}).find(k =>
+    k.toLowerCase().includes('date'));
+
+  if (!from || !to || !dateKey) {
+    filteredRows = [...rawRows];
+  } else {
+    filteredRows = rawRows.filter(r => {
+      const d = new Date(r[dateKey]);
+      d.setHours(0,0,0,0);
+      return d >= from && d <= to;
+    });
+  }
+
+  if (!filteredRows.length) filteredRows = rawRows; // fallback: show all
+
+  document.getElementById('status-bar').textContent =
+    `${filteredRows.length} record${filteredRows.length !== 1 ? 's' : ''} in view`;
+
+  renderDashboard();
+}
+
+// ══════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════
+function num(r, ...keys) {
+  for (const k of keys) {
+    const v = parseFloat(r[k]);
+    if (!isNaN(v)) return v;
+  }
+  return 0;
+}
+
+function fmtTime(secs) {
+  if (!secs && secs !== 0) return '—';
+  const m = Math.floor(secs / 60), s = Math.round(secs % 60);
+  return `${m} MIN${m !== 1 ? 'S' : ''} ${String(s).padStart(2,'0')} SECS`;
+}
+
+function sumKey(rows, key) {
+  return rows.reduce((a, r) => a + num(r, key), 0);
+}
+
+function avgKey(rows, key) {
+  const v = rows.map(r => num(r, key)).filter(v => v > 0);
+  return v.length ? v.reduce((a,b) => a+b,0) / v.length : 0;
+}
+
+// Detect column names flexibly
+function col(r, ...variants) {
+  for (const v of variants) {
+    if (r[v] !== undefined) return r[v];
+  }
+  return '';
+}
+
+function getShiftRows() {
+  const shiftMap = {};
+  filteredRows.forEach(r => {
+    const s = r['Shift'] || r['shift'] || 'All';
+    if (!shiftMap[s]) shiftMap[s] = [];
+    shiftMap[s].push(r);
+  });
+  return shiftMap;
+}
+
+// ══════════════════════════════════════════════════
+//  RENDER DASHBOARD
+// ══════════════════════════════════════════════════
+function renderDashboard() {
+  renderKPIs();
+  renderShifts();
+  renderCharts();
+  renderTable();
+}
+
+// ── KPIs ──
+function renderKPIs() {
+  const totalMentions  = sumKey(filteredRows, 'Mentions');
+  const totalFBComments = sumKey(filteredRows, 'FBComments');
+  const totalIGComments = sumKey(filteredRows, 'IGComments');
+  const totalComments  = totalFBComments + totalIGComments;
+  const totalPos = sumKey(filteredRows,'FBPositive') + sumKey(filteredRows,'IGPositive');
+  const totalNeg = sumKey(filteredRows,'FBNegative') + sumKey(filteredRows,'IGNegative');
+  const totalNeu = sumKey(filteredRows,'FBNeutral')  + sumKey(filteredRows,'IGNeutral');
+  const totalSent = totalPos + totalNeg + totalNeu || 1;
+  const avgFRT = avgKey(filteredRows, 'FRT_secs');
+  const avgART = avgKey(filteredRows, 'ART_secs');
+  const slaBreaches = sumKey(filteredRows, 'SLABreach');
+  const replyRate   = avgKey(filteredRows, 'ReplyRate');
+
+  const kpis = [
+    { label:'Total Mentions',   value: totalMentions.toLocaleString(),   sub:'Across all shifts',       icon:'📢', color:'var(--gold)' },
+    { label:'Total Comments',   value: totalComments.toLocaleString(),   sub:'FB + Instagram',           icon:'💬', color:'var(--accent)' },
+    { label:'FB Comments',      value: totalFBComments.toLocaleString(), sub:'Facebook only',            icon:'📘', color:'#1877f2' },
+    { label:'IG Comments',      value: totalIGComments.toLocaleString(), sub:'Instagram only',           icon:'📸', color:'#e1306c' },
+    { label:'Positive',         value: `${((totalPos/totalSent)*100).toFixed(1)}%`, sub:`${totalPos.toLocaleString()} comments`, icon:'😊', color:'var(--positive)' },
+    { label:'Negative',         value: `${((totalNeg/totalSent)*100).toFixed(1)}%`, sub:`${totalNeg.toLocaleString()} comments`, icon:'😠', color:'var(--negative)' },
+    { label:'Avg FRT',          value: fmtTime(avgFRT),                  sub:'First Response Time',      icon:'⚡', color:'var(--accent2)' },
+    { label:'Avg ART',          value: fmtTime(avgART),                  sub:'Avg Response Time',        icon:'🕐', color:'var(--accent2)' },
+    { label:'SLA Breaches',     value: slaBreaches.toLocaleString(),     sub:'Across all shifts',        icon:'🚨', color: slaBreaches ? 'var(--negative)' : 'var(--positive)' },
+    { label:'Reply Rate',       value: `${replyRate.toFixed(0)}%`,       sub:'Target: 100%',             icon:'✅', color:'var(--positive)' },
+  ];
+
+  const grid = document.getElementById('kpi-grid');
+  grid.innerHTML = kpis.map(k => `
+    <div class="kpi-card" style="--accent-color:${k.color}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value">${k.value}</div>
+      <div class="kpi-sub">${k.sub}</div>
+      <div class="kpi-icon">${k.icon}</div>
+    </div>
+  `).join('');
+}
+
+// ── SHIFTS ──
+function renderShifts() {
+  const shiftMap = getShiftRows();
+  const shiftColors = ['var(--gold)','var(--accent)','var(--accent2)'];
+  const shiftDefs = [
+    { key:'Shift 1', label:'Shift 1', time:'9am – 5pm' },
+    { key:'Shift 2', label:'Shift 2', time:'5pm – 1am' },
+    { key:'Shift 3', label:'Shift 3', time:'1am – 9am' },
+  ];
+
+  const html = shiftDefs.map((def, i) => {
+    const rows = shiftMap[def.key] || filteredRows;
+    const mentions = sumKey(rows,'Mentions');
+    const fbC = sumKey(rows,'FBComments');
+    const igC = sumKey(rows,'IGComments');
+    const totalC = fbC + igC;
+    const pos = sumKey(rows,'FBPositive') + sumKey(rows,'IGPositive');
+    const neg = sumKey(rows,'FBNegative') + sumKey(rows,'IGNegative');
+    const neu = sumKey(rows,'FBNeutral')  + sumKey(rows,'IGNeutral');
+    const frt = avgKey(rows,'FRT_secs');
+    const art = avgKey(rows,'ART_secs');
+    const sla = sumKey(rows,'SLABreach');
+    const rr  = avgKey(rows,'ReplyRate');
+    const total = pos+neg+neu || 1;
+
+    return `
+    <div class="shift-card" style="border-top:3px solid ${shiftColors[i]}">
+      <div class="shift-header">
+        <span class="shift-name">${def.label}</span>
+        <span class="shift-time">${def.time}</span>
+      </div>
+      <div class="shift-row"><span class="key">All Mentions</span><span class="val">${mentions.toLocaleString()}</span></div>
+      <div class="shift-row"><span class="key">FB+IG Comments</span><span class="val">${totalC.toLocaleString()}</span></div>
+      <div class="shift-row"><span class="key">Facebook</span><span class="val">${fbC.toLocaleString()}</span></div>
+      <div class="shift-row"><span class="key">Instagram</span><span class="val">${igC.toLocaleString()}</span></div>
+      <div class="shift-row"><span class="key">FRT</span><span class="val">${fmtTime(frt)}</span></div>
+      <div class="shift-row"><span class="key">ART</span><span class="val">${fmtTime(art)}</span></div>
+      <div class="shift-row"><span class="key">FRT+ART</span><span class="val">${fmtTime(frt+art)}</span></div>
+      <div class="shift-row"><span class="key">SLA Breach</span><span class="val" style="color:${sla?'var(--negative)':'var(--positive)'}">${sla}</span></div>
+      <div class="shift-row"><span class="key">Reply Rate</span><span class="val" style="color:var(--positive)">${rr.toFixed(0)}%</span></div>
+      <div class="sentiment-mini">
+        <div class="sent-chip pos">😊 ${((pos/total)*100).toFixed(0)}% Pos</div>
+        <div class="sent-chip neg">😠 ${((neg/total)*100).toFixed(0)}% Neg</div>
+        <div class="sent-chip neu">😐 ${((neu/total)*100).toFixed(0)}% Neu</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('shifts-grid').innerHTML = html;
+}
+
+// ── CHARTS ──
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function renderCharts() {
+  const shiftMap = getShiftRows();
+  const shiftLabels = ['Shift 1','Shift 2','Shift 3'];
+
+  // aggregate per shift
+  const shiftData = shiftLabels.map(s => {
+    const rows = shiftMap[s] || [];
+    return {
+      fb:   sumKey(rows,'FBComments'),
+      ig:   sumKey(rows,'IGComments'),
+      pos:  sumKey(rows,'FBPositive') + sumKey(rows,'IGPositive'),
+      neg:  sumKey(rows,'FBNegative') + sumKey(rows,'IGNegative'),
+      neu:  sumKey(rows,'FBNeutral')  + sumKey(rows,'IGNeutral'),
+      mentions: sumKey(rows,'Mentions'),
+      frt:  avgKey(rows,'FRT_secs'),
+      art:  avgKey(rows,'ART_secs'),
+    };
+  });
+
+  // total sentiment
+  const totalPos = filteredRows.reduce((a,r) => a + num(r,'FBPositive') + num(r,'IGPositive'), 0);
+  const totalNeg = filteredRows.reduce((a,r) => a + num(r,'FBNegative') + num(r,'IGNegative'), 0);
+  const totalNeu = filteredRows.reduce((a,r) => a + num(r,'FBNeutral')  + num(r,'IGNeutral'),  0);
+
+  // 1. Sentiment doughnut
+  destroyChart('sentiment');
+  charts['sentiment'] = new Chart(document.getElementById('chart-sentiment'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Positive','Negative','Neutral'],
+      datasets: [{ data: [totalPos, totalNeg, totalNeu],
+        backgroundColor: ['#22c55e','#ef4444','#38bdf8'],
+        borderColor: '#1a1d27', borderWidth: 3,
+        hoverOffset: 8 }]
+    },
+    options: {
+      cutout: '62%',
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const t = totalPos+totalNeg+totalNeu || 1;
+              return ` ${ctx.label}: ${ctx.raw} (${((ctx.raw/t)*100).toFixed(1)}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // 2. Platform bar
+  destroyChart('platform');
+  charts['platform'] = new Chart(document.getElementById('chart-platform'), {
+    type: 'bar',
+    data: {
+      labels: shiftLabels,
+      datasets: [
+        { label:'Facebook',  data: shiftData.map(s=>s.fb), backgroundColor:'#1877f2' },
+        { label:'Instagram', data: shiftData.map(s=>s.ig), backgroundColor:'#e1306c' },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        x: { grid: { color:'#2e3250' }, ticks: { color:'#8b90a7' } },
+        y: { grid: { color:'#2e3250' }, ticks: { color:'#8b90a7' } }
+      }
+    }
+  });
+
+  // 3. Response time
+  destroyChart('rt');
+  charts['rt'] = new Chart(document.getElementById('chart-rt'), {
+    type: 'bar',
+    data: {
+      labels: shiftLabels,
+      datasets: [
+        { label:'FRT (secs)', data: shiftData.map(s=>Math.round(s.frt)), backgroundColor:'#a78bfa' },
+        { label:'ART (secs)', data: shiftData.map(s=>Math.round(s.art)), backgroundColor:'#4f8ef7' },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        x: { grid: { color:'#2e3250' }, ticks: { color:'#8b90a7' } },
+        y: { grid: { color:'#2e3250' }, ticks: { color:'#8b90a7' } }
+      }
+    }
+  });
+
+  // 4. Mentions vs Comments
+  destroyChart('mentions');
+  charts['mentions'] = new Chart(document.getElementById('chart-mentions'), {
+    type: 'bar',
+    data: {
+      labels: shiftLabels,
+      datasets: [
+        { label:'Mentions', data: shiftData.map(s=>s.mentions), backgroundColor:'#f5c518' },
+        { label:'Comments', data: shiftData.map(s=>s.fb+s.ig), backgroundColor:'#38bdf8', borderRadius:4 },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        x: { grid: { color:'#2e3250' }, ticks: { color:'#8b90a7' } },
+        y: { grid: { color:'#2e3250' }, ticks: { color:'#8b90a7' } }
+      }
+    }
+  });
+
+  // 5. FB Sentiment
+  destroyChart('fb-sent');
+  charts['fb-sent'] = new Chart(document.getElementById('chart-fb-sent'), {
+    type: 'bar',
+    data: {
+      labels: shiftLabels,
+      datasets: [
+        { label:'Positive', data: shiftData.map(s=> {
+            const rows = shiftMap[shiftLabels[shiftData.indexOf(s)]] || [];
+            return sumKey(rows,'FBPositive');
+          }), backgroundColor:'#22c55e' },
+        { label:'Negative', data: shiftData.map((_,i) => {
+            const rows = shiftMap[shiftLabels[i]] || [];
+            return sumKey(rows,'FBNegative');
+          }), backgroundColor:'#ef4444' },
+        { label:'Neutral', data: shiftData.map((_,i) => {
+            const rows = shiftMap[shiftLabels[i]] || [];
+            return sumKey(rows,'FBNeutral');
+          }), backgroundColor:'#38bdf8' },
+      ]
+    },
+    options: {
+      responsive: true, indexAxis: 'y',
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        x: { stacked:true, grid: { color:'#2e3250' }, ticks: { color:'#8b90a7' } },
+        y: { stacked:true, grid: { color:'#2e3250' }, ticks: { color:'#8b90a7' } }
+      }
+    }
+  });
+
+  // 6. IG Sentiment
+  destroyChart('ig-sent');
+  charts['ig-sent'] = new Chart(document.getElementById('chart-ig-sent'), {
+    type: 'bar',
+    data: {
+      labels: shiftLabels,
+      datasets: [
+        { label:'Positive', data: shiftData.map((_,i) => { const rows = shiftMap[shiftLabels[i]]||[]; return sumKey(rows,'IGPositive'); }), backgroundColor:'#22c55e' },
+        { label:'Negative', data: shiftData.map((_,i) => { const rows = shiftMap[shiftLabels[i]]||[]; return sumKey(rows,'IGNegative'); }), backgroundColor:'#ef4444' },
+        { label:'Neutral',  data: shiftData.map((_,i) => { const rows = shiftMap[shiftLabels[i]]||[]; return sumKey(rows,'IGNeutral');  }), backgroundColor:'#38bdf8' },
+      ]
+    },
+    options: {
+      responsive: true, indexAxis: 'y',
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        x: { stacked:true, grid: { color:'#2e3250' }, ticks: { color:'#8b90a7' } },
+        y: { stacked:true, grid: { color:'#2e3250' }, ticks: { color:'#8b90a7' } }
+      }
+    }
+  });
+}
+
+// ── TABLE ──
+let tableData = [];
+function renderTable() {
+  const shiftMap = getShiftRows();
+  const shiftDefs = [
+    { key:'Shift 1', time:'9am–5pm' },
+    { key:'Shift 2', time:'5pm–1am' },
+    { key:'Shift 3', time:'1am–9am' },
+  ];
+
+  tableData = shiftDefs.map(def => {
+    const rows = shiftMap[def.key] || filteredRows;
+    const fbP = sumKey(rows,'FBPositive'), fbNeg = sumKey(rows,'FBNegative'), fbNeu = sumKey(rows,'FBNeutral');
+    const igP = sumKey(rows,'IGPositive'), igNeg = sumKey(rows,'IGNegative'), igNeu = sumKey(rows,'IGNeutral');
+    const pos = fbP+igP, neg = fbNeg+igNeg, neu = fbNeu+igNeu;
+    return {
+      shift: def.key,
+      hours: def.time,
+      mentions: sumKey(rows,'Mentions'),
+      totalComments: sumKey(rows,'FBComments') + sumKey(rows,'IGComments'),
+      fb: sumKey(rows,'FBComments'),
+      ig: sumKey(rows,'IGComments'),
+      pos, neg, neu,
+      frt: avgKey(rows,'FRT_secs'),
+      art: avgKey(rows,'ART_secs'),
+      sla: sumKey(rows,'SLABreach'),
+      rr:  avgKey(rows,'ReplyRate'),
+    };
+  });
+
+  renderTableRows(tableData);
+}
+
+function renderTableRows(data) {
+  const q = (document.getElementById('table-search').value || '').toLowerCase();
+  const body = document.getElementById('table-body');
+  body.innerHTML = data
+    .filter(r => !q || Object.values(r).join(' ').toLowerCase().includes(q))
+    .map(r => {
+      const total = r.pos+r.neg+r.neu || 1;
+      const posP = (r.pos/total*100).toFixed(0);
+      const negP = (r.neg/total*100).toFixed(0);
+      return `<tr>
+        <td><strong>${r.shift}</strong></td>
+        <td>${r.hours}</td>
+        <td>${r.mentions.toLocaleString()}</td>
+        <td>${r.totalComments.toLocaleString()}</td>
+        <td>${r.fb.toLocaleString()}</td>
+        <td>${r.ig.toLocaleString()}</td>
+        <td><span class="badge badge-pos">${r.pos}</span></td>
+        <td><span class="badge badge-neg">${r.neg}</span></td>
+        <td><span class="badge badge-neu">${r.neu}</span></td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div class="progress-bar"><div class="progress-fill" style="width:${posP}%;background:var(--positive)"></div></div>
+            <span style="font-size:.72rem;color:var(--muted)">${posP}% pos</span>
+          </div>
+        </td>
+        <td>${fmtTime(r.frt)}</td>
+        <td>${fmtTime(r.art)}</td>
+        <td style="color:${r.sla?'var(--negative)':'var(--positive)'}"><strong>${r.sla}</strong></td>
+        <td style="color:var(--positive)">${r.rr.toFixed(0)}%</td>
+      </tr>`;
+    }).join('');
+}
+
+function filterTable() { renderTableRows(tableData); }
+
+function sortTable(col) {
+  const th = document.querySelectorAll('#detail-table th');
+  th.forEach(t => t.classList.remove('sort-asc','sort-desc'));
+  if (sortState.col === col) sortState.dir *= -1;
+  else { sortState.col = col; sortState.dir = 1; }
+  th[col].classList.add(sortState.dir === 1 ? 'sort-asc' : 'sort-desc');
+
+  const keys = ['shift','hours','mentions','totalComments','fb','ig','pos','neg','neu','pos','frt','art','sla','rr'];
+  tableData.sort((a,b) => {
+    const av = a[keys[col]], bv = b[keys[col]];
+    return typeof av === 'number' ? (av-bv)*sortState.dir : String(av).localeCompare(String(bv))*sortState.dir;
+  });
+  renderTableRows(tableData);
+}
+
+// ══════════════════════════════════════════════════
+//  EXPORT CSV
+// ══════════════════════════════════════════════════
+function exportCSV() {
+  const headers = ['Shift','Hours','Mentions','Total Comments','FB Comments','IG Comments','Positive','Negative','Neutral','FRT','ART','SLA Breach','Reply Rate'];
+  const rows = tableData.map(r => [
+    r.shift, r.hours, r.mentions, r.totalComments, r.fb, r.ig,
+    r.pos, r.neg, r.neu, fmtTime(r.frt), fmtTime(r.art), r.sla, r.rr.toFixed(0)+'%'
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `social_dashboard_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ══════════════════════════════════════════════════
+//  AUTO REFRESH
+// ══════════════════════════════════════════════════
+let refreshTimer;
+function startAutoRefresh() {
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(loadData, REFRESH_INTERVAL_MS);
+}
+
+// ══════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════
+loadData().then(() => startAutoRefresh());
+</script>
+</body>
+</html>
